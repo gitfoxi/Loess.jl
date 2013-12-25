@@ -45,10 +45,10 @@ end
 #   A fit LoessModel.
 #
 using DataArrays
+# TODO: could be matricies?
 function removeNA(da::AbstractVector, das::AbstractVector...)
     # remove "rows" containing NA from one or more vectors of the same length
     # some of which may be DataArray
-    println("removeNA")
     if typeof(da) <: DataArray
         narows = isna(da)
     else
@@ -58,40 +58,21 @@ function removeNA(da::AbstractVector, das::AbstractVector...)
     for dx in das
         @assert length(dx) == length(da)
         if typeof(dx) <: DataArray
-            narows &= isna(dx)
+            narows |= isna(dx)
         end
     end
 
-    da = da[!narows]
-    das = [dx[!narows] for dx in das]
+    da = convert(Vector{eltype(da)}, da[!narows])
+    das = [convert(Vector{eltype(dx)}, dx[!narows]) for dx in das]
     tuple(da,das...)
 end
 
-# Sometimes I'm not so impressed with multiple-dispatch
-#function loess(xs::DataArray, ys::DataArray;
-#	                            	   normalize::Bool=true, span::Float64=0.75, degree::Int=2)
-#    loess_(xs, ys; normalize=normalize, span=span, degree=degree)
-#end
-#
-#function loess(xs::DataArray, ys::AbstractVector;
-#	                            	   normalize::Bool=true, span::Float64=0.75, degree::Int=2)
-#    loess_(xs, ys; normalize=normalize, span=span, degree=degree)
-#end
-#
-#function loess(xs::AbstractVector, ys::DataArray;
-#	                            	   normalize::Bool=true, span::Float64=0.75, degree::Int=2)
-#    loess_(xs, ys; normalize=normalize, span=span, degree=degree)
-#end
-
-# function actual_loess{T <: Float64}(xs::AbstractMatrix{T}, ys::AbstractVector{T};
-function actual_loess{T <: Float64}(xs, ys::AbstractVector{T};
+function uptight_loess{T <: Float64}(xs, ys::AbstractVector{T};
 	                               normalize::Bool=true, span::T=0.75, degree::Int=2)
-    println("loess(Matrix,Vector) $(typeof(xs)) $(typeof(ys))")
 	if size(xs, 1) != size(ys, 1)
 		error("Predictor and response arrays must of the same length")
 	end
 
-    @show xs
 	n, m = size(xs)
 	q = iceil(span * n)
 
@@ -159,22 +140,18 @@ function actual_loess{T <: Float64}(xs, ys::AbstractVector{T};
 	LoessModel{T}(xs, ys, bs, verts, kdtree)
 end
 
-function loess_prep(xs::AbstractVector, ys::AbstractVector;
-	                            	   normalize::Bool=true, span::Float64=0.75, degree::Int=2)
-    println("loess_(Vector,Vector) $(typeof(xs)) $(typeof(ys))")
+# TODO: xs::AbstractMatrix{T}
+function loess(xs, ys::AbstractVector;
+	                            	   normalize::Bool=true, span=0.75, degree::Int=2)
+	xs = reshape(xs, (length(xs),))
     @assert length(xs) == length(ys)
     xs, ys = removeNA(xs, ys)
     xs, ys = (float64(xs), float64(ys))
     if length(size(xs)) == 1
         xs = reshape(xs,length(xs),1)
     end
-    actual_loess(xs, ys; normalize=normalize, span=span, degree=degree)
-end
+    uptight_loess(xs, ys; normalize=normalize, span=span, degree=degree)
 
-function loess{T <: Float64}(xs::AbstractVector{T}, ys::AbstractVector{T};
-	                            	   normalize::Bool=true, span::T=0.75, degree::Int=2)
-    println("loess(Vector{Float64},Vector{Float64}) $(typeof(xs)) $(typeof(ys))")
-	loess_prep(reshape(xs, (length(xs),)), ys; normalize=normalize, span=span, degree=degree)
 end
 
 
@@ -195,7 +172,6 @@ end
 function predict{T <: FloatingPoint}(model::LoessModel{T}, z::Any)
     # Why would you have a model that wasn't float64?
     z = float64(z)
-#    @show typeof(z)
     predict(model, z)
 end
 
