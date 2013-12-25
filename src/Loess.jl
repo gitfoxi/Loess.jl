@@ -48,6 +48,7 @@ using DataArrays
 function removeNA(da::AbstractVector, das::AbstractVector...)
     # remove "rows" containing NA from one or more vectors of the same length
     # some of which may be DataArray
+    println("removeNA")
     if typeof(da) <: DataArray
         narows = isna(da)
     else
@@ -67,7 +68,6 @@ function removeNA(da::AbstractVector, das::AbstractVector...)
 end
 
 # Sometimes I'm not so impressed with multiple-dispatch
-AbstractVectorOrDataArray = Union(AbstractVector, DataArray)
 #function loess(xs::DataArray, ys::DataArray;
 #	                            	   normalize::Bool=true, span::Float64=0.75, degree::Int=2)
 #    loess_(xs, ys; normalize=normalize, span=span, degree=degree)
@@ -83,26 +83,15 @@ AbstractVectorOrDataArray = Union(AbstractVector, DataArray)
 #    loess_(xs, ys; normalize=normalize, span=span, degree=degree)
 #end
 
-function loess_(xs::AbstractVectorOrDataArray, ys::AbstractVectorOrDataArray;
-	                            	   normalize::Bool=true, span::Float64=0.75, degree::Int=2)
-    @assert length(xs) == length(ys)
-    xs, ys = removeNA(xs, ys)
-    xs, ys = (float64(xs), float64(ys))
-    loess(xs, ys; normalize=normalize, span=span, degree=degree)
-end
-
-function loess{T <: Float64}(xs::AbstractVector{T}, ys::AbstractVector{T};
-	                            	   normalize::Bool=true, span::T=0.75, degree::Int=2)
-	loess(reshape(xs, (length(xs), 1)), ys, normalize=normalize, span=span, degree=degree)
-end
-
-
-function loess{T <: Float64}(xs::AbstractMatrix{T}, ys::AbstractVector{T};
+# function actual_loess{T <: Float64}(xs::AbstractMatrix{T}, ys::AbstractVector{T};
+function actual_loess{T <: Float64}(xs, ys::AbstractVector{T};
 	                               normalize::Bool=true, span::T=0.75, degree::Int=2)
+    println("loess(Matrix,Vector) $(typeof(xs)) $(typeof(ys))")
 	if size(xs, 1) != size(ys, 1)
 		error("Predictor and response arrays must of the same length")
 	end
 
+    @show xs
 	n, m = size(xs)
 	q = iceil(span * n)
 
@@ -169,6 +158,26 @@ function loess{T <: Float64}(xs::AbstractMatrix{T}, ys::AbstractVector{T};
 
 	LoessModel{T}(xs, ys, bs, verts, kdtree)
 end
+
+function loess_prep(xs::AbstractVector, ys::AbstractVector;
+	                            	   normalize::Bool=true, span::Float64=0.75, degree::Int=2)
+    println("loess_(Vector,Vector) $(typeof(xs)) $(typeof(ys))")
+    @assert length(xs) == length(ys)
+    xs, ys = removeNA(xs, ys)
+    xs, ys = (float64(xs), float64(ys))
+    if length(size(xs)) == 1
+        xs = reshape(xs,length(xs),1)
+    end
+    actual_loess(xs, ys; normalize=normalize, span=span, degree=degree)
+end
+
+function loess{T <: Float64}(xs::AbstractVector{T}, ys::AbstractVector{T};
+	                            	   normalize::Bool=true, span::T=0.75, degree::Int=2)
+    println("loess(Vector{Float64},Vector{Float64}) $(typeof(xs)) $(typeof(ys))")
+	loess_prep(reshape(xs, (length(xs),)), ys; normalize=normalize, span=span, degree=degree)
+end
+
+
 
 # Predict response values from a trained loess model and predictor observations.
 #
