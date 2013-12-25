@@ -9,7 +9,7 @@ module Loess
 import Iterators.product
 import Distance.euclidean
 
-export loess, predict
+export loess_, loess, predict
 
 include("kd.jl")
 
@@ -44,6 +44,36 @@ end
 # Returns:
 #   A fit LoessModel.
 #
+using DataArrays
+function removeNA(da::AbstractVector, das::AbstractVector...)
+    # remove "rows" containing NA from one or more vectors of the same length
+    # some of which may be DataArray
+    if typeof(da) <: DataArray
+        narows = isna(da)
+    else
+        narows = repeat([false], inner=[length(da)])
+    end
+
+    for dx in das
+        @assert length(dx) == length(da)
+        if typeof(dx) <: DataArray
+            narows &= isna(dx)
+        end
+    end
+
+    da = da[!narows]
+    das = [dx[!narows] for dx in das]
+    tuple(da,das...)
+end
+
+function loess(xs::AbstractVector, ys::AbstractVector;
+	                            	   normalize::Bool=true, span::Float64=0.75, degree::Int=2)
+    @assert length(xs) == length(ys)
+    xs, ys = removeNA(xs, ys)
+    xs, ys = (float64(xs), float64(ys))
+    loess(xs, ys; normalize=normalize, span=span, degree=degree)
+end
+
 function loess{T <: FloatingPoint}(xs::AbstractVector{T}, ys::AbstractVector{T};
 	                            	   normalize::Bool=true, span::T=0.75, degree::Int=2)
 	loess(reshape(xs, (length(xs), 1)), ys, normalize=normalize, span=span, degree=degree)
