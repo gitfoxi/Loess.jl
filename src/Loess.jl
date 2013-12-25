@@ -66,7 +66,24 @@ function removeNA(da::AbstractVector, das::AbstractVector...)
     tuple(da,das...)
 end
 
-function loess(xs::AbstractVector, ys::AbstractVector;
+# Sometimes I'm not so impressed with multiple-dispatch
+AbstractVectorOrDataArray = Union(AbstractVector, DataArray)
+#function loess(xs::DataArray, ys::DataArray;
+#	                            	   normalize::Bool=true, span::Float64=0.75, degree::Int=2)
+#    loess_(xs, ys; normalize=normalize, span=span, degree=degree)
+#end
+#
+#function loess(xs::DataArray, ys::AbstractVector;
+#	                            	   normalize::Bool=true, span::Float64=0.75, degree::Int=2)
+#    loess_(xs, ys; normalize=normalize, span=span, degree=degree)
+#end
+#
+#function loess(xs::AbstractVector, ys::DataArray;
+#	                            	   normalize::Bool=true, span::Float64=0.75, degree::Int=2)
+#    loess_(xs, ys; normalize=normalize, span=span, degree=degree)
+#end
+
+function loess_(xs::AbstractVectorOrDataArray, ys::AbstractVectorOrDataArray;
 	                            	   normalize::Bool=true, span::Float64=0.75, degree::Int=2)
     @assert length(xs) == length(ys)
     xs, ys = removeNA(xs, ys)
@@ -74,13 +91,13 @@ function loess(xs::AbstractVector, ys::AbstractVector;
     loess(xs, ys; normalize=normalize, span=span, degree=degree)
 end
 
-function loess{T <: FloatingPoint}(xs::AbstractVector{T}, ys::AbstractVector{T};
+function loess{T <: Float64}(xs::AbstractVector{T}, ys::AbstractVector{T};
 	                            	   normalize::Bool=true, span::T=0.75, degree::Int=2)
 	loess(reshape(xs, (length(xs), 1)), ys, normalize=normalize, span=span, degree=degree)
 end
 
 
-function loess{T <: FloatingPoint}(xs::AbstractMatrix{T}, ys::AbstractVector{T};
+function loess{T <: Float64}(xs::AbstractMatrix{T}, ys::AbstractVector{T};
 	                               normalize::Bool=true, span::T=0.75, degree::Int=2)
 	if size(xs, 1) != size(ys, 1)
 		error("Predictor and response arrays must of the same length")
@@ -166,6 +183,13 @@ end
 # Returns:
 #   A length n' vector of predicted response values.
 #
+function predict{T <: FloatingPoint}(model::LoessModel{T}, z::Any)
+    # Why would you have a model that wasn't float64?
+    z = float64(z)
+#    @show typeof(z)
+    predict(model, z)
+end
+
 function predict{T <: FloatingPoint}(model::LoessModel{T}, z::T)
 	predict(model, T[z])
 end
